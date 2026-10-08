@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quizzya — How well do they know you?</title>
+  <meta name="description" content="Create a fun personal quiz, share it with friends, and find out how well they really know you." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app">
+    <nav class="nav rise">
+      <a href="index.html" class="logo"><span class="logo-mark">💡</span>Quizzya</a>
+      <a href="dashboard.html" class="btn btn-ghost btn-sm">My quizzes</a>
+    </nav>
+
+    <header class="center mt-3">
+      <span class="eyebrow rise" style="--d:.05s">✨ The personal quiz game</span>
+      <h1 class="rise" style="--d:.1s">How well do<br /><span class="grad-text">they know you?</span></h1>
+      <p class="lead rise mt-2" style="--d:.18s;max-width:34ch;margin-inline:auto">
+        Make a quiz about <b>yourself</b> in a minute, send it to friends, and see who really knows you best.
+      </p>
+      <div class="rise mt-3" style="--d:.26s">
+        <a href="create.html" class="btn btn-primary btn-block" style="max-width:320px;margin:0 auto">Create your quiz 💛</a>
+        <p class="muted mt-2" style="font-size:.85rem">Free · No sign-up · 60 seconds</p>
+      </div>
+    </header>
+
+    <!-- Floating teaser card -->
+    <div class="card rise mt-4 float-slow" style="--d:.34s;max-width:380px;margin-inline:auto;transform:rotate(-2deg)">
+      <div class="row between">
+        <span class="chip coral">🔥 12 friends played</span>
+        <span class="muted" style="font-size:.8rem">2 min ago</span>
+      </div>
+      <h2 class="mt-2" style="font-size:1.15rem">What is my favorite food?</h2>
+      <div class="stack mt-2">
+        <div class="opt"><span class="key">A</span>Biryani 🍛</div>
+        <div class="opt selected"><span class="key">B</span>Momos 🥟</div>
+      </div>
+    </div>
+
+    <section class="mt-4">
+      <h2 class="rise center">Easy as 1 · 2 · 3</h2>
+      <div class="stack mt-3">
+        <div class="card rise" style="--d:.05s">
+          <div style="font-size:2rem">✏️</div>
+          <h3 class="mt-1">1. Create</h3>
+          <p class="muted">Write fun questions about yourself — your favorites, dreams, little secrets.</p>
+        </div>
+        <div class="card rise" style="--d:.12s">
+          <div style="font-size:2rem">📤</div>
+          <h3 class="mt-1">2. Share</h3>
+          <p class="muted">Send one link on WhatsApp, Instagram, anywhere. No app needed to play.</p>
+        </div>
+        <div class="card rise" style="--d:.19s">
+          <div style="font-size:2rem">🏆</div>
+          <h3 class="mt-1">3. Discover</h3>
+          <p class="muted">Watch scores roll in and crown your true bestie. Spoiler: it's never who you think.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card center mt-4 rise" style="background:linear-gradient(135deg,#221d33,#3b2a5e);border:none;color:#fff">
+      <div style="font-size:2.4rem" class="bounce-soft">💬</div>
+      <h2 class="mt-1" style="color:#fff">Made for group chats</h2>
+      <p style="color:rgba(255,255,255,.75)">Birthday parties, sleepovers, long-distance friendships — Quizzya turns "how well do you know me" into the main event.</p>
+      <a href="create.html" class="btn btn-primary mt-3">Start now — it's free 🎉</a>
+    </section>
+
+    <footer class="footer">Made with 💛 by Quizzya · <span class="muted">demo build — data stays on this device</span></footer>
+  </div>
+  <script src="js/store.js"></script>
+</body>
+</html>
