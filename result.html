@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Result — arfuu</title>
+  <!-- Google fonts used by the design system -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Ambient background: gradient blobs + film grain -->
+  <div class="bg-fx"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
+  <div class="grain"></div>
+
+  <div class="wrap">
+    <!-- Brand header -->
+    <nav class="nav">
+      <a class="logo" href="index.html"><span class="mark">🎭</span><em>arfuu</em></a>
+    </nav>
+
+    <!-- Shown when there is no saved result in sessionStorage -->
+    <div id="emptyBox" class="empty hidden rise">
+      <span class="big">🎭</span>
+      <b>No result to show yet.</b>
+      <p class="muted">Play a friend's quiz first — your score will land here.</p>
+      <a class="btn btn-primary mt-2" href="create.html">Create your own quiz</a>
+    </div>
+
+    <!-- Shown when a result was saved by take.html -->
+    <div id="resultBox" class="hidden">
+      <div class="center mt-2">
+        <span class="chip pink">🎭 result</span>
+        <div id="playerChipWrap" class="mt-2"></div>
+        <h2 id="rTitle" class="mt-2">Your quiz</h2>
+        <!-- Big animated score, filled in by JS as "score/total" -->
+        <div class="score-big mt-3" id="score">0/0</div>
+        <p class="lead" id="pct">0%</p>
+        <p class="lead" id="msg"></p>
+      </div>
+
+      <h3 class="mt-4">Answer review 👀</h3>
+      <div id="revList" class="stack mt-2"></div>
+
+      <div class="stack mt-3">
+        <a class="btn btn-primary btn-block btn-lg" href="create.html">Create Your Own Quiz ✨</a>
+        <button class="btn btn-ghost btn-block" id="shareQuiz" type="button">Share this quiz 💌</button>
+      </div>
+    </div>
+
+    <footer class="footer">made with 💜 by <span class="flogo">arfuu</span></footer>
+  </div>
+
+  <script src="js/store.js"></script>
+  <script>
+    // ============================================================
+    // result.html — shows the score from the quiz you just played.
+    // take.html saves { quizId, result } into sessionStorage under
+    // 'arfuu_last' right after grading, and we pick it up here.
+    // ============================================================
+    (async function () {
+      'use strict';
+
+      // ---- grab the static elements we will fill in ----
+      var emptyBox = document.getElementById('emptyBox');
+      var resultBox = document.getElementById('resultBox');
+      var playerChipWrap = document.getElementById('playerChipWrap');
+      var rTitle = document.getElementById('rTitle');
+      var scoreEl = document.getElementById('score');
+      var pctEl = document.getElementById('pct');
+      var msgEl = document.getElementById('msg');
+      var revList = document.getElementById('revList');
+      var shareBtn = document.getElementById('shareQuiz');
+
+      // ---- 1. read the saved result (may be missing) ----
+      var saved = null;
+      try {
+        saved = JSON.parse(sessionStorage.getItem('arfuu_last'));
+      } catch (e) {
+        saved = null; // corrupt JSON -> treat as missing
+      }
+
+      if (!saved || !saved.result) {
+        emptyBox.classList.remove('hidden');
+        return;
+      }
+      resultBox.classList.remove('hidden');
+
+      var quizId = saved.quizId;
+      var result = saved.result;
+      var score = result.score || 0;
+      var total = result.total || 0;
+      var percentage = result.percentage || 0;
+      var review = result.review || [];
+
+      // ---- 2. quiz title (fall back to a generic name) ----
+      try {
+        var quiz = await QuizStore.get(quizId); // await works on sync or async
+        if (quiz && quiz.title) rTitle.textContent = quiz.title;
+      } catch (e) {
+        /* keep the fallback title */
+      }
+
+      // ---- 3. player name chip, only if we know who played ----
+      if (result.playerName) {
+        playerChipWrap.innerHTML = '<span class="chip">🙋 ' + esc(result.playerName) + '</span>';
+      }
+
+      // ---- 4. tiered message based on percentage ----
+      function tierMessage(pct) {
+        if (pct === 100) return 'Absolute legend! Nobody knows them like you do. 🏆';
+        if (pct >= 80) return 'Certified bestie status: UNLOCKED 🔥';
+        if (pct >= 60) return 'Pretty solid — a few sneaky ones got you 👀';
+        if (pct >= 40) return 'Hmm… suspicious. Rematch when? 🙂';
+        return 'Fake friend detected 😅 (kidding… mostly)';
+      }
+
+      // ---- 5. count-up animation: score 0 → final, then reveal pct ----
+      var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      function finish() {
+        // shown after the count-up (or immediately if reduced motion)
+        pctEl.textContent = percentage + '%';
+        msgEl.textContent = tierMessage(percentage);
+        maybeConfetti();
+      }
+
+      if (reduceMotion) {
+        scoreEl.textContent = score + '/' + total;
+        finish();
+      } else {
+        var startedAt = null;
+        var DURATION = 900; // ~0.9s count-up
+        function frame(now) {
+          if (startedAt === null) startedAt = now;
+          var p = Math.min((now - startedAt) / DURATION, 1);
+          var eased = 1 - Math.pow(1 - p, 3); // ease-out cubic
+          scoreEl.textContent = Math.round(eased * score) + '/' + total;
+          if (p < 1) {
+            requestAnimationFrame(frame);
+          } else {
+            finish();
+          }
+        }
+        requestAnimationFrame(frame);
+      }
+
+      // ---- 6. answer review: green when right, red when wrong ----
+      revList.innerHTML = review
+        .map(function (r, i) {
+          var good = r.picked === r.correctIndex;
+          var pickedOpt = esc((r.options && r.options[r.picked]) ?? '—');
+          var correctOpt = esc((r.options && r.options[r.correctIndex]) ?? '—');
+          var ra = good
+            ? 'You picked <b>' + pickedOpt + '</b> ✓'
+            : 'You picked <b>' + pickedOpt + '</b> ✗<br>Correct: <b>' + correctOpt + '</b> ✓';
+          return (
+            '<div class="review-item ' + (good ? 'good' : 'bad') + '">' +
+            '<div class="rq">' + (i + 1) + '. ' + esc(r.text) + '</div>' +
+            '<div class="ra">' + ra + '</div>' +
+            '</div>'
+          );
+        })
+        .join('');
+
+      // ---- 7. share this quiz: copy its public link ----
+      shareBtn.addEventListener('click', async function () {
+        var link = await QuizStore.shareLink(quizId); // await works on sync or async
+        try {
+          await navigator.clipboard.writeText(link);
+          toast('Quiz link copied 💌');
+        } catch (e) {
+          // clipboard API blocked (older browser / non-secure context): prompt fallback
+          window.prompt('Copy your quiz link:', link);
+        }
+      });
+
+      // ---- lightweight confetti: brand colors, 3.5s, then gone ----
+      function maybeConfetti() {
+        if (percentage < 70) return; // only celebrate good scores
+        if (reduceMotion) return; // respect prefers-reduced-motion
+        var colors = ['#8b5cf6', '#a855f7', '#ec4899', '#f472b6', '#60a5fa'];
+        var canvas = document.createElement('canvas');
+        canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:98';
+        document.body.appendChild(canvas);
+        var ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        // spawn ~120 falling pieces from the top
+        var pieces = [];
+        for (var i = 0; i < 120; i++) {
+          pieces.push({
+            x: Math.random() * canvas.width,
+            y: -20 - Math.random() * canvas.height * 0.3,
+            w: 6 + Math.random() * 6,
+            h: 8 + Math.random() * 8,
+            vy: 2 + Math.random() * 3.5,
+            vx: -1.5 + Math.random() * 3,
+            rot: Math.random() * Math.PI * 2,
+            vr: -0.1 + Math.random() * 0.2,
+            color: colors[(Math.random() * colors.length) | 0],
+          });
+        }
+        var started = performance.now();
+        (function tick(now) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          for (var j = 0; j < pieces.length; j++) {
+            var p = pieces[j];
+            p.vy += 0.06; // gravity
+            p.x += p.vx;
+            p.y += p.vy;
+            p.rot += p.vr;
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.rot);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+            ctx.restore();
+          }
+          if (now - started < 3500) {
+            requestAnimationFrame(tick);
+          } else {
+            canvas.remove(); // clean up, don't leave a dead canvas around
+          }
+        })();
+      }
+    })();
+  </script>
+</body>
+</html>
