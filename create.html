@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create your quiz — arfuu</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ambient background layers (every page) -->
+  <div class="bg-fx"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
+  <div class="grain"></div>
+
+  <div class="wrap">
+    <!-- top nav -->
+    <nav class="nav">
+      <a class="logo" href="index.html"><span class="mark">🎭</span><em>arfuu</em></a>
+      <span class="step-label">Step 1 of 3 · You</span>
+    </nav>
+
+    <div class="mt-3 rise">
+      <h1>Let's make it yours ✨</h1>
+      <p class="lead">First, tell us who this quiz is about.</p>
+    </div>
+
+    <div class="card mt-3 rise" style="--d:.08s">
+      <!-- quiz creator name -->
+      <div class="field">
+        <label for="name">Your name</label>
+        <input type="text" id="name" maxlength="30" placeholder="e.g. Resalat ✨" autocomplete="off">
+      </div>
+      <!-- optional custom title -->
+      <div class="field mt-2">
+        <label for="quizTitle">Quiz title (optional)</label>
+        <input type="text" id="quizTitle" maxlength="60" placeholder="e.g. How well do you know me? 🎭" autocomplete="off">
+        <p class="hint">Leave it blank and we'll come up with one.</p>
+      </div>
+      <!-- validation message, hidden until needed -->
+      <p class="err hidden" id="err" role="alert"></p>
+
+      <button class="btn btn-primary btn-block mt-3" id="go">Continue →</button>
+    </div>
+  </div>
+
+  <script src="js/store.js"></script>
+  <script>
+    // Step 1 of quiz creation: who is this quiz about?
+    // We stash a draft in sessionStorage so builder.html can pick it up.
+
+    const nameInput = document.getElementById("name");
+    const titleInput = document.getElementById("quizTitle");
+    const errEl = document.getElementById("err");
+    const goBtn = document.getElementById("go");
+
+    // Show a validation error under the form.
+    function showError(msg) {
+      if (!errEl) return;
+      errEl.textContent = msg;
+      errEl.classList.remove("hidden");
+    }
+
+    function hideError() {
+      if (!errEl) return;
+      errEl.classList.add("hidden");
+      errEl.textContent = "";
+    }
+
+    // Validate, save the draft, and move on to the builder.
+    function goNext() {
+      hideError();
+      const name = nameInput ? nameInput.value.trim() : "";
+      if (name.length < 2) {
+        showError("Give us at least 2 letters 😊");
+        if (nameInput) nameInput.focus();
+        return;
+      }
+      const title = (titleInput && titleInput.value.trim()) || name + "'s quiz";
+
+      try {
+        sessionStorage.setItem(
+          "arfuu_draft",
+          JSON.stringify({ creatorName: name, title: title, questions: [] })
+        );
+      } catch (e) {
+        // sessionStorage can throw in private mode — still continue,
+        // the builder will nudge back to this page if the draft is missing.
+        toast("Couldn't save the draft, but let's try anyway 💜");
+      }
+      location.href = "builder.html";
+    }
+
+    if (goBtn) goBtn.addEventListener("click", goNext);
+    // Let Enter submit from either field.
+    if (nameInput) nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") goNext(); });
+    if (titleInput) titleInput.addEventListener("keydown", (e) => { if (e.key === "Enter") goNext(); });
+  </script>
+</body>
+</html>
