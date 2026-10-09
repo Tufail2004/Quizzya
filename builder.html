@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Builder — arfuu</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ambient background layers (every page) -->
+  <div class="bg-fx"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
+  <div class="grain"></div>
+
+  <div class="wrap">
+    <!-- top nav -->
+    <nav class="nav">
+      <a class="logo" href="index.html"><span class="mark">🎭</span><em>arfuu</em></a>
+      <span class="step-label">Step 2 of 3 · Questions</span>
+    </nav>
+
+    <!-- live question count + progress bar -->
+    <div class="row between mt-3">
+      <span class="chip" id="qCount">0 questions</span>
+      <div class="progress" style="flex:1"><i id="bar"></i></div>
+    </div>
+
+    <div class="mt-2 rise">
+      <h1>Ask the fun stuff 🎈</h1>
+      <p class="lead">Add at least <b>3 questions</b>. Tap the ✓ on the right answer — only you know it!</p>
+    </div>
+
+    <!-- saved questions render here -->
+    <div class="stack mt-3" id="qList"></div>
+
+    <!-- question editor card -->
+    <div class="card mt-3" id="editor">
+      <h3 id="editorTitle">New question</h3>
+
+      <div class="field mt-2">
+        <input type="text" id="qText" maxlength="140" placeholder="e.g. What's my ultimate comfort food? 🍛" autocomplete="off">
+      </div>
+
+      <!-- answer option rows render here -->
+      <div class="stack mt-2" id="optInputs"></div>
+
+      <button class="btn btn-soft btn-sm mt-2" id="addOpt">＋ Add option</button>
+      <p class="hint">Tap ✓ to mark the correct answer.</p>
+      <!-- validation message, hidden until needed -->
+      <p class="err hidden" id="qErr" role="alert"></p>
+
+      <div class="row mt-2">
+        <button class="btn btn-primary btn-block" id="saveQ">Add question ✓</button>
+        <button class="btn btn-ghost hidden" id="cancelEdit">Cancel</button>
+      </div>
+    </div>
+
+    <!-- bottom actions -->
+    <div class="row mt-3">
+      <a class="btn btn-ghost" href="create.html">← Back</a>
+      <button class="btn btn-soft" id="toPreview" style="flex:1">Preview 👀</button>
+    </div>
+    <button class="btn btn-primary btn-block btn-lg mt-2" id="publish">Create My Quiz ✨</button>
+  </div>
+
+  <script src="js/store.js"></script>
+  <script>
+    // ============================================================
+    // builder.html — Step 2 of 3: write the questions.
+    // Reads/writes the draft in sessionStorage under 'arfuu_draft':
+    //   { creatorName, title, questions: [{id, text, options[], correctIndex}] }
+    // ============================================================
+
+    const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+    const MAX_OPTIONS = 6;
+
+    // ---- load the draft (create.html must have run first) ----
+    let draft = null;
+    try {
+      draft = JSON.parse(sessionStorage.getItem('arfuu_draft'));
+    } catch (e) { draft = null; }
+    if (!draft || !draft.creatorName) {
+      location.href = 'create.html';
+    }
+
+    // ---- editor state (kept outside the DOM so re-renders never wipe typing) ----
+    let editingId = null;   // null = adding a new question
+    let correctIdx = -1;    // which option row is marked ✓ (-1 = none)
+
+    // Five friendly samples so nobody stares at a blank page.
+    function seedSamples() {
+      const samples = [
+        { text: "What's my ultimate comfort food? 🍛", options: ['Pizza 🍕', 'Biryani 🍗', 'Momos 🥟', 'Pasta 🍝'], correctIndex: 1 },
+        { text: 'Which cartoon could I rewatch forever? 📺', options: ['Tom & Jerry 🐭', 'Shinchan 😎', 'Doraemon 🔔', 'Oggy the cat 🐱'], correctIndex: 0 },
+        { text: 'Pick the song stuck in my head right now 🎵', options: ['Kesariya 🎶', 'Perfect 🎸', 'Levitating 🪩', 'Apna Time Aayega 🎤'], correctIndex: 2 },
+        { text: 'My dream trip would be to… ✈️', options: ['Paris 🗼', 'Bali 🏝️', 'Tokyo 🍣', 'Switzerland 🏔️'], correctIndex: 1 },
+        { text: "On a free evening, I'm usually… 🌙", options: ['Gaming 🎮', 'Scrolling reels 📱', 'Out with friends 🧋', 'Reading 📚'], correctIndex: 0 },
+      ];
+      draft.questions = samples.map((s, i) => ({ id: 'seed' + (i + 1), text: s.text, options: s.options, correctIndex: s.correctIndex }));
+      persist();
+    }
+
+    function persist() {
+      try { sessionStorage.setItem('arfuu_draft', JSON.stringify(draft)); } catch (e) { /* storage full/blocked — keep going */ }
+    }
+
+    // ---- question counter + progress bar ----
+    function updateCounter() {
+      const n = draft.questions.length;
+      $('#qCount').textContent = n + ' question' + (n === 1 ? '' : 's');
+      $('#bar').style.width = (Math.min(n / 5, 1) * 100) + '%';
+    }
+
+    // ---- render the saved-question list ----
+    function renderList() {
+      const list = $('#qList');
+      if (!draft.questions.length) {
+        list.innerHTML = '<div class="empty"><span class="big">🫗</span><b>No questions yet</b><p>Add your first one below!</p></div>';
+        return;
+      }
+      list.innerHTML = draft.questions.map((q, i) => `
+        <article class="card pop">
+          <div class="row between">
+            <span class="badge-num">${i + 1}</span>
+            <span class="row">
+              <button class="icon-btn" data-act="edit" data-id="${q.id}" title="Edit question">✏️</button>
+              <button class="icon-btn" data-act="del" data-id="${q.id}" title="Delete question">🗑️</button>
+            </span>
+          </div>
+          <b style="display:block;margin-top:0.7rem">${esc(q.text)}</b>
+          <p class="muted" style="margin:0.4rem 0 0">✓ ${esc(q.options[q.correctIndex] ?? '')}</p>
+        </article>`).join('');
+    }
+
+    // One click handler for every edit/delete button (event delegation).
+    $('#qList').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const q = draft.questions.find((x) => x.id === btn.dataset.id);
+      if (!q) return;
+      if (btn.dataset.act === 'del') {
+        draft.questions = draft.questions.filter((x) => x.id !== q.id);
+        if (editingId === q.id) resetEditor();
+        persist(); renderList(); updateCounter();
+        toast('Poof — question deleted 🗑️');
+      } else {
+        startEdit(q);
+      }
+    });
+
+    // ---- option rows in the editor ----
+    // Read what's currently typed (so add/remove never loses input).
+    function getRowValues() {
+      return $$('#optInputs .opt-val').map((input) => input.value);
+    }
+
+    // Paint the option rows from an array of strings.
+    function renderOptRows(values) {
+      $('#optInputs').innerHTML = values.map((v, i) => `
+        <div class="row opt-row">
+          <span class="chip">${LETTERS[i]}</span>
+          <input type="text" class="opt-val" style="flex:1" maxlength="60" placeholder="Option ${LETTERS[i]}…" value="${esc(v)}" autocomplete="off">
+          <button class="icon-btn mark${i === correctIdx ? ' on' : ''}" title="Mark as correct">✓</button>
+          <button class="icon-btn rm" title="Remove option" style="width:1.9rem;height:1.9rem;font-size:0.85rem">✕</button>
+        </div>`).join('');
+    }
+
+    // Mark / remove buttons live inside #optInputs — one delegated handler.
+    $('#optInputs').addEventListener('click', (e) => {
+      const mark = e.target.closest('.mark');
+      const rm = e.target.closest('.rm');
+      const rows = $$('#optInputs .opt-row');
+      const row = e.target.closest('.opt-row');
+      const i = rows.indexOf(row);
+
+      if (mark) {
+        // Toggle: only one option can be "the one" at a time.
+        correctIdx = (correctIdx === i) ? -1 : i;
+        $$('#optInputs .mark').forEach((b, j) => b.classList.toggle('on', j === correctIdx));
+      } else if (rm) {
+        const values = getRowValues();
+        if (values.length <= 2) { toast('Keep at least 2 options ✌️'); return; }
+        values.splice(i, 1);
+        if (correctIdx === i) correctIdx = -1;
+        else if (correctIdx > i) correctIdx -= 1;
+        renderOptRows(values);
+      }
+    });
+
+    $('#addOpt').addEventListener('click', () => {
+      const values = getRowValues();
+      if (values.length >= MAX_OPTIONS) { toast('Max 6 options — keep it snappy ✂️'); return; }
+      values.push('');
+      renderOptRows(values);
+      const inputs = $$('#optInputs .opt-val');
+      inputs[inputs.length - 1].focus();
+    });
+
+    // ---- editor: new vs editing ----
+    function resetEditor() {
+      editingId = null;
+      correctIdx = -1;
+      $('#editorTitle').textContent = 'New question';
+      $('#qText').value = '';
+      renderOptRows(['', '']);
+      $('#saveQ').textContent = 'Add question ✓';
+      $('#cancelEdit').classList.add('hidden');
+      hideErr();
+    }
+
+    function startEdit(q) {
+      editingId = q.id;
+      correctIdx = q.correctIndex;
+      $('#editorTitle').textContent = 'Edit question';
+      $('#qText').value = q.text;
+      renderOptRows(q.options.slice());
+      $('#saveQ').textContent = 'Save changes ✓';
+      $('#cancelEdit').classList.remove('hidden');
+      hideErr();
+      $('#editor').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    $('#cancelEdit').addEventListener('click', resetEditor);
+
+    function showErr(msg) {
+      const el = $('#qErr');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+    function hideErr() {
+      const el = $('#qErr');
+      el.classList.add('hidden');
+      el.textContent = '';
+    }
+
+    // ---- save (add new or apply edit) ----
+    $('#saveQ').addEventListener('click', () => {
+      hideErr();
+      const text = $('#qText').value.trim();
+      if (text.length < 4) {
+        showErr('Give your question a little more love — 4+ characters ✏️');
+        return;
+      }
+      const raw = getRowValues().map((v) => v.trim());
+      const filled = raw.filter((v) => v);
+      if (filled.length < 2) {
+        showErr('Fill in at least 2 options so your friends can choose 🧩');
+        return;
+      }
+      // No two options may read the same (case-insensitive).
+      const seen = new Set();
+      for (const opt of filled) {
+        const key = opt.toLowerCase();
+        if (seen.has(key)) { showErr('Oops — two options are the same! Make each one unique 👀'); return; }
+        seen.add(key);
+      }
+      // The marked answer must be one of the filled options.
+      if (correctIdx < 0 || !raw[correctIdx]) {
+        showErr('Tap the ✓ on the right answer — only you know it! 💜');
+        return;
+      }
+      const correctValue = raw[correctIdx];
+      const newCorrect = filled.findIndex((v) => v === correctValue);
+      const question = {
+        id: editingId || ('q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+        text,
+        options: filled,
+        correctIndex: newCorrect,
+      };
+      if (editingId) {
+        const i = draft.questions.findIndex((q) => q.id === editingId);
+        if (i > -1) draft.questions[i] = question;
+        toast('Question updated ✨');
+      } else {
+        draft.questions.push(question);
+        toast('Question added 🎉');
+      }
+      persist(); renderList(); updateCounter(); resetEditor();
+    });
+
+    // ---- footer actions ----
+    $('#toPreview').addEventListener('click', () => {
+      persist();
+      location.href = 'preview.html';
+    });
+
+    $('#publish').addEventListener('click', async () => {
+      if (draft.questions.length < 3) {
+        toast('Add at least 3 questions first 🎈');
+        $('#editor').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      const btn = $('#publish');
+      btn.disabled = true;
+      btn.textContent = 'Creating… ✨';
+      try {
+        const r = await QuizStore.create({
+          title: draft.title,
+          creatorName: draft.creatorName,
+          questions: draft.questions.map(({ text, options, correctIndex }) => ({ text, options, correctIndex })),
+        });
+        sessionStorage.removeItem('arfuu_draft');
+        location.href = `share.html?id=${encodeURIComponent(r.id)}&secret=${encodeURIComponent(r.secret)}`;
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Create My Quiz ✨';
+        toast("Couldn't create — check your connection 😢");
+      }
+    });
+
+    // ---- init ----
+    if (!draft.questions || !draft.questions.length) seedSamples();
+    renderOptRows(['', '']);
+    renderList();
+    updateCounter();
+  </script>
+</body>
+</html>
