@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Dashboard — arfuu</title>
+  <!-- Google fonts used by the design system -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Ambient background: gradient blobs + film grain -->
+  <div class="bg-fx"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
+  <div class="grain"></div>
+
+  <div class="wrap wrap-wide">
+    <!-- Brand header -->
+    <nav class="nav">
+      <a class="logo" href="index.html"><span class="mark">🎭</span><em>arfuu</em></a>
+    </nav>
+
+    <!-- Loading state: replaced by content or by the error box -->
+    <div id="loading" class="card center rise">Loading your dashboard… 💜</div>
+
+    <!-- Everything below is rendered by JS into #dash -->
+    <div id="dash" class="hidden"></div>
+
+    <footer class="footer">made with 💜 by <span class="flogo">arfuu</span></footer>
+  </div>
+
+  <script src="js/store.js"></script>
+  <script>
+    // ============================================================
+    // dashboard.html — the quiz creator's private results view.
+    // URL: dashboard.html?id=<quizId>&secret=<quizSecret>
+    // The secret unlocks the answers + everyone's responses.
+    // ============================================================
+    (async function () {
+      'use strict';
+
+      var loading = document.getElementById('loading');
+      var dash = document.getElementById('dash');
+
+      // fmtDate may not exist in store.js yet — provide a safe local fallback.
+      var fmtDate = window.fmtDate || function (iso) {
+        try {
+          return new Date(iso).toLocaleDateString(undefined, {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+          });
+        } catch (e) {
+          return '';
+        }
+      };
+
+      // ---- read ?id=&secret= from the URL ----
+      var qs = new URLSearchParams(location.search);
+      var id = qs.get('id');
+      var secret = qs.get('secret');
+
+      // ---- error state: bad/missing link ----
+      function showError() {
+        loading.innerHTML =
+          '<div class="empty">' +
+          '<span class="big">🔒</span>' +
+          "<b>Couldn't open this dashboard.</b>" +
+          '<p>The link looks wrong or expired.</p>' +
+          '</div>';
+      }
+
+      if (!id || !secret) {
+        showError();
+        return;
+      }
+
+      // ---- one response card: expandable, with per-question review ----
+      function responseCard(r, quiz) {
+        var rows = quiz.questions
+          .map(function (q, i) {
+            var picked = r.picks[i];
+            var good = picked === q.correctIndex;
+            var ra = good
+              ? 'Picked: <b>' + esc(q.options[picked] ?? '—') + '</b> ✓'
+              : 'Picked: <b>' +
+                esc(q.options[picked] ?? '—') +
+                '</b> ✗<br>Correct: <b>' +
+                esc(q.options[q.correctIndex] ?? '—') +
+                '</b>';
+            return (
+              '<div class="review-item ' + (good ? 'good' : 'bad') + '">' +
+              '<div class="rq">' + (i + 1) + '. ' + esc(q.text) + '</div>' +
+              '<div class="ra">' + ra + '</div>' +
+              '</div>'
+            );
+          })
+          .join('');
+
+        return (
+          '<details class="rev pop">' +
+          '<summary>' +
+          '<span><b>' + esc(r.playerName) + '</b>' +
+          '<span class="muted"> · ' + esc(fmtDate(r.createdAt)) + '</span></span>' +
+          '<span class="row">' +
+          '<span class="chip pink">' + r.score + '/' + r.total + '</span>' +
+          '<span class="chip blue">' + r.percentage + '%</span>' +
+          '</span>' +
+          '</summary>' +
+          '<div class="rev-body stack">' + rows + '</div>' +
+          '</details>'
+        );
+      }
+
+      // ---- main render ----
+      async function render(data) {
+        var quiz = data.quiz;
+        var responses = data.responses || [];
+        var stats = data.stats || {};
+        var link = await QuizStore.shareLink(quiz.id); // await works on sync or async
+        var avg = Number(stats.avgScore || 0).toFixed(1);
+
+        var respHtml = responses.length
+          ? responses.map(function (r) { return responseCard(r, quiz); }).join('')
+          : '<div class="empty">' +
+            '<span class="big">🫗</span>' +
+            "<b>No one's played yet!</b>" +
+            '<p>Share your link in the group chat and watch the scores roll in 👀</p>' +
+            '</div>';
+
+        dash.innerHTML =
+          '<header class="mt-2">' +
+          '<h1>' + esc(quiz.title) + '</h1>' +
+          '<p class="muted">by ' + esc(quiz.creatorName) + ' · ' + esc(fmtDate(quiz.createdAt)) + '</p>' +
+          '</header>' +
+
+          '<div class="stats mt-3">' +
+          '<div class="stat"><b>' + (stats.questions ?? quiz.questionCount ?? 0) + '</b><span>questions</span></div>' +
+          '<div class="stat"><b>' + responses.length + '</b><span>responses</span></div>' +
+          '<div class="stat"><b>' + avg + '</b><span>avg score</span></div>' +
+          '</div>' +
+
+          '<div class="card card-glow mt-3">' +
+          '<div class="field">' +
+          '<label for="pubLink">🔗 Public quiz link</label>' +
+          '<div class="row">' +
+          '<input type="text" id="pubLink" readonly value="' + esc(link) + '" style="flex:1">' +
+          '<button type="button" class="btn btn-soft btn-sm" id="copyPub">Copy 📋</button>' +
+          '</div>' +
+          '</div>' +
+          '<a class="muted mt-2" style="display:inline-block;font-size:.9rem" href="take.html?id=' +
+          encodeURIComponent(quiz.id) + '">Open the quiz ↗</a>' +
+          '</div>' +
+
+          '<h2 class="mt-4">Responses 💬</h2>' +
+          '<div id="respList" class="stack mt-2">' + respHtml + '</div>';
+
+        loading.classList.add('hidden');
+        dash.classList.remove('hidden');
+
+        // ---- copy button: clipboard API with a select fallback ----
+        document.getElementById('copyPub').addEventListener('click', async function () {
+          var input = document.getElementById('pubLink');
+          try {
+            await navigator.clipboard.writeText(input.value);
+            toast('Link copied 💌');
+          } catch (e) {
+            input.select();
+            try {
+              document.execCommand('copy');
+              toast('Link copied 💌');
+            } catch (e2) {
+              toast('Long-press to copy the link 💌');
+            }
+          }
+        });
+      }
+
+      // ---- load the private data; wrong secret throws -> error box ----
+      try {
+        var data = await QuizStore.responses(id, secret);
+        await render(data);
+      } catch (e) {
+        showError();
+      }
+    })();
+  </script>
+</body>
+</html>
