@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responses — arfuu</title>
+  <!-- Google fonts used by the design system -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Ambient background: gradient blobs + film grain -->
+  <div class="bg-fx"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
+  <div class="grain"></div>
+
+  <div class="wrap">
+    <!-- Brand header -->
+    <nav class="nav">
+      <a class="logo" href="index.html"><span class="mark">🎭</span><em>arfuu</em></a>
+    </nav>
+    <p class="muted center mt-4">Taking you to your responses…</p>
+  </div>
+
+  <script src="js/store.js"></script>
+  <script>
+    // ============================================================
+    // responses.html — tiny redirect page.
+    // The dashboard lives at dashboard.html; this page just keeps the
+    // query string (?id=&secret=) exactly as-is and hands it over.
+    // ============================================================
+    var s = location.search;
+    location.replace('dashboard.html' + s);
+  </script>
+  <noscript>
+    <div class="wrap"><p class="muted">Enable JavaScript to view your responses 💜</p></div>
+  </noscript>
+</body>
+</html>
