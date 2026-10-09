@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Take the quiz — arfuu</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ambient background layers (every page) -->
+  <div class="bg-fx"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
+  <div class="grain"></div>
+
+  <div class="wrap">
+    <!-- top nav -->
+    <nav class="nav">
+      <a class="logo" href="index.html"><span class="mark">🎭</span><em>arfuu</em></a>
+    </nav>
+
+    <!-- STEP 1: who is playing? (name gate) -->
+    <div class="card center mt-4 rise" id="gate">
+      <div style="font-size:3rem">🙋</div>
+      <h1 class="mt-2" style="font-size:1.9rem">Who's playing?</h1>
+      <p class="lead">Your name goes on the leaderboard — no skipping! 😄</p>
+      <div class="field mt-3" style="text-align:left">
+        <input type="text" id="playerName" maxlength="30" placeholder="Your name ✨" autocomplete="off">
+      </div>
+      <button class="btn btn-primary btn-block mt-2" id="startBtn">Start the quiz 🚀</button>
+      <p class="err hidden" id="gateErr" role="alert"></p>
+    </div>
+
+    <!-- STEP 2: play through the questions -->
+    <div class="hidden" id="play">
+      <div class="row between mt-2">
+        <span class="step-label" id="qCounter">Question 1 of 5</span>
+        <span class="chip" id="qTag"></span>
+      </div>
+      <div class="progress mt-2"><i id="qBar"></i></div>
+      <h2 class="mt-3" id="qText"></h2>
+      <div class="stack mt-3" id="qOpts"></div>
+      <div class="row mt-3">
+        <button class="btn btn-ghost" id="prevBtn">← Prev</button>
+        <button class="btn btn-primary" id="nextBtn" style="flex:1">Next →</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: double-check answers before submitting -->
+    <div class="hidden" id="review">
+      <h2 class="mt-3">Double-check 👀</h2>
+      <p class="lead">Here's what you've got — tap change to fix any answer.</p>
+      <div class="stack mt-3" id="revList"></div>
+      <div class="row mt-2">
+        <span class="chip" id="revName"></span>
+        <span class="muted" id="revCount"></span>
+      </div>
+      <button class="btn btn-primary btn-block btn-lg mt-2" id="submitBtn">Submit My Answers 💌</button>
+      <p class="hint" id="submitHint"></p>
+    </div>
+  </div>
+
+  <script src="js/store.js"></script>
+  <script>
+    // ============================================================
+    // take.html — play a friend's quiz (?id=…).
+    // Flow: name gate → one question at a time → review → submit.
+    // Submit goes through QuizStore.addResponse, which grades the
+    // answers; the result is stashed for result.html to display.
+    // ============================================================
+
+    const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+    let quiz = null;        // the quiz being played
+    let playerName = '';    // who is playing
+    let idx = 0;            // current question index
+    let picks = [];         // picks[i] = chosen option index, -1 = unanswered
+
+    // ---- small UI helpers ----
+    function showGateErr(msg) {
+      const el = $('#gateErr');
+      el.textContent = msg;
+      el.classList.remove('hidden');
+    }
+    function hideGateErr() {
+      const el = $('#gateErr');
+      el.classList.add('hidden');
+      el.textContent = '';
+    }
+    function show(el) { el.classList.remove('hidden'); }
+    function hide(el) { el.classList.add('hidden'); }
+
+    // ---- STEP 1: name gate ----
+    function startQuiz() {
+      hideGateErr();
+      const name = $('#playerName').value.trim();
+      if (name.length < 2) {
+        showGateErr('We need at least 2 letters — pick a name 😄');
+        $('#playerName').focus();
+        return;
+      }
+      playerName = name;
+      $('#revName').textContent = `🙋 ${name}`;
+      hide($('#gate'));
+      show($('#play'));
+      renderQ();
+    }
+
+    $('#startBtn').addEventListener('click', startQuiz);
+    // Enter key starts too.
+    $('#playerName').addEventListener('keydown', (e) => { if (e.key === 'Enter') startQuiz(); });
+
+    // ---- STEP 2: render the current question ----
+    function answeredCount() {
+      return picks.filter((p) => p >= 0).length;
+    }
+
+    function renderQ() {
+      const n = quiz.questions.length;
+      const q = quiz.questions[idx];
+
+      $('#qCounter').textContent = `Question ${idx + 1} of ${n}`;
+      // Progress = how many questions have an answer, not how far we've scrolled.
+      $('#qBar').style.width = (answeredCount() / n * 100) + '%';
+
+      // Re-trigger the pop animation on the question text.
+      const qText = $('#qText');
+      qText.textContent = q.text;
+      qText.classList.remove('pop');
+      void qText.offsetWidth; // force the browser to notice the class removal
+      qText.classList.add('pop');
+
+      renderOpts();
+
+      $('#prevBtn').disabled = idx === 0;
+      const nextBtn = $('#nextBtn');
+      if (idx === n - 1) {
+        nextBtn.textContent = 'Review 👀';
+        nextBtn.classList.remove('btn-primary');
+        nextBtn.classList.add('btn-soft');
+      } else {
+        nextBtn.textContent = 'Next →';
+        nextBtn.classList.remove('btn-soft');
+        nextBtn.classList.add('btn-primary');
+      }
+    }
+
+    // Paint the answer buttons; only re-painted when the question changes
+    // or a pick is made.
+    function renderOpts() {
+      const q = quiz.questions[idx];
+      $('#qOpts').innerHTML = q.options.map((opt, i) => `
+        <button class="opt${picks[idx] === i ? ' selected' : ''}" data-i="${i}">
+          <span class="key">${LETTERS[i]}</span>${esc(opt)}
+        </button>`).join('');
+    }
+
+    $('#qOpts').addEventListener('click', (e) => {
+      const btn = e.target.closest('.opt');
+      if (!btn) return;
+      picks[idx] = Number(btn.dataset.i);
+      renderOpts(); // refresh the .selected highlight only
+    });
+
+    $('#prevBtn').addEventListener('click', () => {
+      if (idx > 0) { idx -= 1; renderQ(); }
+    });
+
+    $('#nextBtn').addEventListener('click', () => {
+      if (idx < quiz.questions.length - 1) {
+        idx += 1;
+        renderQ();
+      } else {
+        showReview();
+      }
+    });
+
+    // ---- STEP 3: review screen ----
+    function showReview() {
+      hide($('#play'));
+      show($('#review'));
+
+      $('#revList').innerHTML = quiz.questions.map((q, i) => {
+        const pick = picks[i] >= 0 ? q.options[picks[i]] : '— not answered';
+        return `
+          <div class="review-item">
+            <div class="rq">${i + 1}. ${esc(q.text)}</div>
+            <div class="row between mt-1">
+              <div class="ra">Your pick: ${esc(pick)}</div>
+              <button class="btn btn-sm btn-ghost" data-i="${i}">Change</button>
+            </div>
+          </div>`;
+      }).join('');
+
+      const done = answeredCount();
+      const n = quiz.questions.length;
+      $('#revCount').textContent = `${done}/${n} answered`;
+
+      const allAnswered = picks.every((p) => p >= 0);
+      $('#submitBtn').disabled = !allAnswered;
+      $('#submitHint').textContent = allAnswered
+        ? 'Ready when you are ✨'
+        : 'Answer every question to unlock submit 🔒';
+    }
+
+    // "Change" jumps back to that question.
+    $('#revList').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-i]');
+      if (!btn) return;
+      idx = Number(btn.dataset.i);
+      hide($('#review'));
+      show($('#play'));
+      renderQ();
+    });
+
+    $('#submitBtn').addEventListener('click', async () => {
+      const btn = $('#submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Sending… 💌';
+      try {
+        const res = await QuizStore.addResponse(quiz.id, { playerName, picks });
+        // result.html picks this up and shows the score + breakdown.
+        sessionStorage.setItem('arfuu_last', JSON.stringify({ quizId: quiz.id, result: res }));
+        location.href = 'result.html';
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Submit My Answers 💌';
+        toast("Couldn't submit — check your connection 😢");
+      }
+    });
+
+    // ---- init: load the quiz from ?id= ----
+    (async function init() {
+      const id = new URLSearchParams(location.search).get('id');
+      let loaded = null;
+      try {
+        loaded = id ? await QuizStore.get(id) : null;
+      } catch (e) { loaded = null; }
+
+      if (!loaded || !loaded.questions || !loaded.questions.length) {
+        $('#gate').innerHTML = '<div class="empty"><span class="big">🔍</span><b>Quiz not found</b><p>This link looks broken or expired.</p></div>';
+        return;
+      }
+
+      quiz = loaded;
+      picks = new Array(quiz.questions.length).fill(-1);
+      $('#qTag').textContent = `💜 ${quiz.creatorName}'s quiz`;
+    })();
+  </script>
+</body>
+</html>
