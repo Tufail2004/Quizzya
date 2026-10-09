@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Share your quiz — arfuu</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ambient background layers (every page) -->
+  <div class="bg-fx"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
+  <div class="grain"></div>
+
+  <div class="wrap">
+    <!-- top nav -->
+    <nav class="nav">
+      <a class="logo" href="index.html"><span class="mark">🎭</span><em>arfuu</em></a>
+    </nav>
+
+    <!-- main content (filled by JS; replaced with .empty if no params) -->
+    <div id="content">
+      <div class="center mt-4 rise">
+        <div style="font-size:3rem">🎉</div>
+        <h1>Your quiz is live!</h1>
+        <p class="lead" id="sub">Loading…</p>
+      </div>
+
+      <div class="card card-glow mt-3 rise" style="--d:.08s">
+        <div class="field">
+          <label for="link">Your quiz link — send it everywhere 💌</label>
+          <input type="text" id="link" readonly value="">
+        </div>
+        <div class="row mt-2">
+          <button class="btn btn-primary" id="copyBtn" style="flex:1">Copy link 📋</button>
+          <button class="btn btn-ghost" id="shareBtn" style="flex:1">Share ↗</button>
+        </div>
+        <div class="row mt-2">
+          <a class="btn btn-soft btn-block" id="waBtn" target="_blank" rel="noopener" href="https://wa.me/?text=">Share on WhatsApp 💬</a>
+        </div>
+        <div class="row mt-3 between">
+          <a class="btn btn-ghost btn-sm" id="dashBtn" href="#">📊 View dashboard</a>
+          <a class="muted" href="create.html">Make another →</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/store.js"></script>
+  <script>
+    // Share page: shows the quiz link right after creation so the user
+    // can blast it to the group chat. Expects ?id=…&secret=… in the URL.
+
+    const content = document.getElementById("content");
+    const sub = document.getElementById("sub");
+    const linkInput = document.getElementById("link");
+    const copyBtn = document.getElementById("copyBtn");
+    const shareBtn = document.getElementById("shareBtn");
+    const waBtn = document.getElementById("waBtn");
+    const dashBtn = document.getElementById("dashBtn");
+
+    // This page is useless without a quiz id in the URL — say so politely.
+    function showEmpty() {
+      if (content) {
+        content.innerHTML =
+          '<div class="empty mt-4">' +
+          '<span class="big">🔍</span>' +
+          "This share page needs a quiz link." +
+          '</div>';
+      }
+    }
+
+    // Copy text to clipboard, with a fallback for older browsers.
+    async function copyText(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (e) {
+        // Fallback: select the readonly input and use execCommand.
+        if (linkInput) {
+          linkInput.select();
+          linkInput.setSelectionRange(0, linkInput.value.length);
+          try {
+            return document.execCommand("copy");
+          } catch (e2) {
+            return false;
+          }
+        }
+        return false;
+      }
+    }
+
+    async function init() {
+      let id = null, secret = null;
+      try {
+        const q = new URLSearchParams(location.search);
+        id = q.get("id");
+        secret = q.get("secret");
+      } catch (e) {
+        showEmpty();
+        return;
+      }
+      if (!id || !secret) {
+        showEmpty();
+        return;
+      }
+
+      let quiz = null;
+      try {
+        quiz = await QuizStore.get(id);
+      } catch (e) {
+        toast("Couldn't load that quiz 💔");
+        if (sub) sub.textContent = "Hmm, that quiz didn't load — double-check the link.";
+        return;
+      }
+
+      // Quiz title in the subtitle (escaped so user input can't break the page).
+      if (sub) sub.textContent = '"' + quiz.title + '" is ready — now go expose your fake friends 😏';
+
+      // Build the shareable link.
+      const link = QuizStore.shareLink(id);
+      if (linkInput) linkInput.value = link;
+
+      // WhatsApp deep link with a pre-written message.
+      if (waBtn) {
+        const msg = "I made a quiz about myself on arfuu 🎭 Think you know me? Prove it 👇 " + link;
+        waBtn.href = "https://wa.me/?text=" + encodeURIComponent(msg);
+      }
+
+      // Dashboard needs the secret too.
+      if (dashBtn) {
+        dashBtn.href = "dashboard.html?id=" + encodeURIComponent(id) + "&secret=" + encodeURIComponent(secret);
+      }
+
+      // Copy button.
+      if (copyBtn) {
+        copyBtn.addEventListener("click", async () => {
+          try {
+            const ok = await copyText(link);
+            toast(ok ? "Link copied — go spam the group chat 💌" : "Copy didn't work — long-press the link 💜");
+          } catch (e) {
+            toast("Couldn't copy it — long-press the link instead 💜");
+          }
+        });
+      }
+
+      // Native share button (falls back to "just copy it").
+      if (shareBtn) {
+        shareBtn.addEventListener("click", async () => {
+          try {
+            if (navigator.share) {
+              await navigator.share({
+                title: "arfuu quiz",
+                text: "I made a quiz about myself on arfuu 🎭 Think you know me? Prove it 👇",
+                url: link,
+              });
+            } else {
+              toast("Copy the link instead 💜");
+            }
+          } catch (e) {
+            // User cancelled the share sheet, or it failed — copying is the backup.
+            toast("Copy the link instead 💜");
+          }
+        });
+      }
+
+      // Tapping the readonly input selects the whole link for manual copy.
+      if (linkInput) {
+        linkInput.addEventListener("click", () => {
+          linkInput.select();
+          linkInput.setSelectionRange(0, linkInput.value.length);
+        });
+      }
+    }
+
+    try {
+      init();
+    } catch (e) {
+      toast("Something went wrong 💔");
+    }
+  </script>
+</body>
+</html>
